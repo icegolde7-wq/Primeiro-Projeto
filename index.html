@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema ERP / Ordem de Serviço e Controle de Estoque</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <h1>🛠️ Sistema ERP — Gestão de OS, Estoque e Financeiro</h1>
+        <div class="role-box">
+            <label for="roleSelect">Perfil de Acesso (RBAC):</label>
+            <select id="roleSelect" onchange="aplicarPermissoesPerfil()">
+                <option value="Administrador">Administrador</option>
+                <option value="Atendente">Atendente</option>
+                <option value="Técnico">Técnico</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="roleDescription" class="role-badge"></div>
+
+    <div id="kpiSection" class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Faturamento (OS Concluídas)</div>
+            <div id="kpiFaturamento" class="kpi-value">R$ 0,00</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Ticket Médio</div>
+            <div id="kpiTicket" class="kpi-value">R$ 0,00</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">OS Concluídas / Total</div>
+            <div id="kpiConcluidas" class="kpi-value">0 / 0</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Peças em Nível Crítico</div>
+            <div id="kpiCriticos" class="kpi-value">0</div>
+        </div>
+    </div>
+
+    <div id="financialSection" class="charts-grid">
+        <div class="panel">
+            <h2>Faturamento Mensal</h2>
+            <div class="chart-wrapper">
+                <canvas id="revenueChart"></canvas>
+            </div>
+        </div>
+        <div class="panel">
+            <h2>Serviços Mais Demandados</h2>
+            <div class="chart-wrapper">
+                <canvas id="servicesChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="panel">
+            <h2>Nova Ordem de Serviço (OS)</h2>
+            <div class="form-group">
+                <label for="clienteNome">Cliente:</label>
+                <input type="text" id="clienteNome" placeholder="Ex: João Silva / Empresa X">
+            </div>
+            <div class="form-group">
+                <label for="equipamento">Veículo / Equipamento:</label>
+                <input type="text" id="equipamento" placeholder="Ex: Notebook Lenovo / Gol 1.6 ABC-1234">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="tipoServico">Tipo de Serviço:</label>
+                    <select id="tipoServico">
+                        <option value="Manutenção Preventiva">Manutenção Preventiva</option>
+                        <option value="Substituição de Peça">Substituição de Peça</option>
+                        <option value="Reparo Elétrico">Reparo Elétrico</option>
+                        <option value="Diagnóstico Geral">Diagnóstico Geral</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="statusOS">Status Inicial:</label>
+                    <select id="statusOS">
+                        <option value="Orçamento">Orçamento</option>
+                        <option value="Em Andamento">Em Andamento</option>
+                        <option value="Aguardando Peça">Aguardando Peça</option>
+                        <option value="Concluído">Concluído</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="pecaId">Peça do Estoque:</label>
+                    <select id="pecaId"></select>
+                </div>
+                <div class="form-group">
+                    <label for="qtdPeca">Qtd. da Peça:</label>
+                    <input type="number" id="qtdPeca" value="1" min="1">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="valorMaoObra">Valor da Mão de Obra (R$):</label>
+                <input type="number" id="valorMaoObra" placeholder="Ex: 150">
+            </div>
+            <button id="btnCriarOS" onclick="processarRequisicao()">Registrar OS e Baixar Estoque</button>
+
+            <div id="messageArea"></div>
+        </div>
+
+        <div class="panel">
+            <h2>Estoque Atual (Almoxarifado)</h2>
+            <div class="table-scroll">
+                <table id="stockTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Peça / Componente</th>
+                            <th>Qtd. Atual</th>
+                            <th>Mínimo</th>
+                            <th>Preço Unit.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockBody"></tbody>
+                </table>
+            </div>
+
+            <div id="restockBar" class="restock-bar">
+                <select id="reporId"></select>
+                <input type="number" id="reporQtd" placeholder="Qtd. entrada" value="5" min="1" style="max-width: 130px;">
+                <button class="btn-secondary" onclick="reporEstoque()" style="max-width: 170px;">Repor Estoque</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Ordens de Serviço Cadastradas</h2>
+        <div class="filter-bar">
+            <input type="text" id="buscaOS" placeholder="Buscar por cliente, equipamento ou nº da OS..." oninput="atualizarTabelaOS()">
+            <select id="filtroStatus" onchange="atualizarTabelaOS()" style="max-width: 220px;">
+                <option value="Todos">Todos os Status</option>
+                <option value="Orçamento">Orçamento</option>
+                <option value="Em Andamento">Em Andamento</option>
+                <option value="Aguardando Peça">Aguardando Peça</option>
+                <option value="Concluído">Concluído</option>
+            </select>
+        </div>
+        <div class="table-scroll">
+            <table id="osTable">
+                <thead>
+                    <tr>
+                        <th>Nº OS</th>
+                        <th>Cliente / Equipamento</th>
+                        <th>Serviço / Peça Vinculada</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="osBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="output-box">
+        <h3>📄 Status da Operação e Emissão de Comprovante</h3>
+        <p id="receipt">Nenhuma operação realizada ainda.</p>
+        <div id="purchasingAlert" class="notification">
+            ⚠️ <strong>ALERTA AO SETOR DE COMPRAS:</strong> Estoque abaixo do mínimo! Necessário reposição.
+        </div>
+        <div class="output-actions">
+            <button onclick="exportarRelatorioPDF()">📥 Exportar Relatório em PDF</button>
+            <button class="btn-secondary" onclick="window.print()">🖨️ Imprimir Comprovante da OS</button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
